@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PWA 카메라 앱</title>
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#4285f4">
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+    <style>
+        body {
+            font-family: -apple-system, system-ui, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            text-align: center;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        #videoContainer {
+            width: 100%;
+            max-width: 500px;
+            margin: 20px auto;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+        video {
+            width: 100%;
+            transform: scaleX(-1);
+        }
+        button {
+            background-color: #4285f4;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 10px;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        button:disabled {
+            background-color: #cccccc;
+        }
+        #photoContainer {
+            display: none;
+            width: 100%;
+            max-width: 500px;
+            margin: 20px auto;
+        }
+        #photo {
+            width: 100%;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>PWA 카메라 앱</h1>
+    <p>모바일에서 설치하여 카메라에 접근해보세요!</p>
+    
+    <div id="videoContainer">
+        <video id="video" autoplay playsinline></video>
+    </div>
+    
+    <div>
+        <button id="startBtn">카메라 시작</button>
+        <button id="captureBtn" disabled>사진 찍기</button>
+        <button id="switchBtn" disabled>카메라 전환</button>
+    </div>
+    
+    <div id="photoContainer">
+        <img id="photo" alt="촬영된 사진">
+        <div>
+            <button id="retakeBtn">다시 찍기</button>
+            <button id="downloadBtn">다운로드</button>
+        </div>
+    </div>
+    
+    <p id="status">카메라를 시작하려면 버튼을 클릭하세요.</p>
+    <canvas id="canvas" style="display:none;"></canvas>
+    
+    <script>
+        // 서비스 워커 등록
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                .then(registration => {
+                    console.log('서비스 워커 등록 성공:', registration.scope);
+                })
+                .catch(error => {
+                    console.log('서비스 워커 등록 실패:', error);
+                });
+            });
+        }
+        
+        // 변수 선언
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('canvas');
+        const photo = document.getElementById('photo');
+        const startBtn = document.getElementById('startBtn');
+        const captureBtn = document.getElementById('captureBtn');
+        const switchBtn = document.getElementById('switchBtn');
+        const retakeBtn = document.getElementById('retakeBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const photoContainer = document.getElementById('photoContainer');
+        const videoContainer = document.getElementById('videoContainer');
+        const status = document.getElementById('status');
+        
+        let stream = null;
+        let facingMode = 'user'; // 기본 전면 카메라
+        
+        // 카메라 시작 버튼
+        startBtn.addEventListener('click', async () => {
+            try {
+                // 카메라 접근 요청
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: facingMode },
+                    audio: false
+                });
+                
+                // 비디오 스트림 설정
+                video.srcObject = stream;
+                
+                // 버튼 상태 업데이트
+                startBtn.disabled = true;
+                captureBtn.disabled = false;
+                switchBtn.disabled = false;
+                
+                // 상태 메시지 업데이트
+                status.textContent = '카메라가 활성화되었습니다. 사진을 찍으세요!';
+                
+            } catch (error) {
+                console.error('카메라 접근 에러:', error);
+                status.textContent = '카메라 접근에 실패했습니다: ' + error.message;
+            }
+        });
+        
+        // 카메라 전환 버튼
+        switchBtn.addEventListener('click', async () => {
+            if (stream) {
+                // 현재 스트림 중지
+                stream.getTracks().forEach(track => {
+                    track.stop();
+                });
+                
+                // 카메라 방향 전환
+                facingMode = facingMode === 'user' ? 'environment' : 'user';
+                
+                try {
+                    // 새 스트림 가져오기
+                    stream = await navigator.mediaDevices.getUserMedia({
+                        video: { facingMode: facingMode },
+                        audio: false
+                    });
+                    
+                    // 비디오 스트림 업데이트
+                    video.srcObject = stream;
+                    
+                } catch (error) {
+                    console.error('카메라 전환 에러:', error);
+                    status.textContent = '카메라 전환에 실패했습니다: ' + error.message;
+                }
+            }
+        });
+        
+        // 사진 캡처 버튼
+        captureBtn.addEventListener('click', () => {
+            // 캔버스 크기 설정
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            
+            // 캔버스에 비디오 프레임 그리기
+            const context = canvas.getContext('2d');
+            
+            // 전면 카메라일 경우 좌우 반전
+            if (facingMode === 'user') {
+                context.translate(canvas.width, 0);
+                context.scale(-1, 1);
+            }
+            
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // 이미지 URL 생성
+            const dataUrl = canvas.toDataURL('image/png');
+            photo.src = dataUrl;
+            
+            // UI 업데이트
+            videoContainer.style.display = 'none';
+            photoContainer.style.display = 'block';
+            
+            // 상태 메시지 업데이트
+            status.textContent = '사진이 촬영되었습니다!';
+        });
+        
+        // 다시 찍기 버튼
+        retakeBtn.addEventListener('click', () => {
+            // UI 업데이트
+            videoContainer.style.display = 'block';
+            photoContainer.style.display = 'none';
+            
+            // 상태 메시지 업데이트
+            status.textContent = '카메라가 활성화되었습니다. 사진을 찍으세요!';
+        });
+        
+        // 다운로드 버튼
+        downloadBtn.addEventListener('click', () => {
+            // 다운로드 링크 생성
+            const link = document.createElement('a');
+            link.download = 'pwa-camera-photo.png';
+            link.href = photo.src;
+            link.click();
+        });
+    </script>
+</body>
+</html>
