@@ -10,6 +10,7 @@ let videoElement;
 let outputCanvasElement;
 let outputCanvasCtx;
 let videoContainer;
+let isIOS = false;
 
 // 초기화
 export function initCamera() {
@@ -17,6 +18,9 @@ export function initCamera() {
     outputCanvasElement = document.getElementById('output-canvas');
     outputCanvasCtx = outputCanvasElement.getContext('2d');
     videoContainer = document.querySelector('.video-container');
+    
+    // iOS 기기 감지
+    isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 }
 
 // 카메라 시작
@@ -24,23 +28,37 @@ export async function startCamera() {
     try {
         initCamera();
         
-        // 기기 방향 확인
+        // 현재 기기 방향
         const isPortrait = window.innerHeight > window.innerWidth;
         
-        // 카메라 접근 요청 - 기기 방향에 맞는 해상도 설정
-        const constraints = {
-            video: {
-                facingMode: facingMode,
-                width: isPortrait ? { ideal: 720 } : { ideal: 1280 },
-                height: isPortrait ? { ideal: 1280 } : { ideal: 720 }
-            }
-        };
+        // iOS 특화 설정
+        let constraints;
+        if (isIOS) {
+            // iOS는 항상 가로 방향으로 비디오를 캡처함
+            constraints = {
+                video: {
+                    facingMode: facingMode,
+                    width: { ideal: 1280 },
+                    height: { ideal: 720 }
+                }
+            };
+        } else {
+            // 다른 기기는 방향에 맞게 설정
+            constraints = {
+                video: {
+                    facingMode: facingMode,
+                    width: isPortrait ? { ideal: 720 } : { ideal: 1280 },
+                    height: isPortrait ? { ideal: 1280 } : { ideal: 720 }
+                }
+            };
+        }
         
         const stream = await navigator.mediaDevices.getUserMedia(constraints);
         videoElement.srcObject = stream;
         
         // 비디오가 로드되면 캔버스 크기 설정
         videoElement.onloadedmetadata = () => {
+            console.log(`비디오 크기: ${videoElement.videoWidth}x${videoElement.videoHeight}`);
             setCanvasSize();
         };
         
@@ -49,8 +67,8 @@ export async function startCamera() {
             onFrame: async () => {
                 await sendImageToFaceMesh(videoElement);
             },
-            width: isPortrait ? 720 : 1280,
-            height: isPortrait ? 1280 : 720
+            width: 1280,
+            height: 720
         });
         
         await camera.start();
@@ -78,7 +96,7 @@ export async function startCamera() {
 function handleOrientationChange() {
     setTimeout(() => {
         handleResize();
-    }, 200); // 방향 변경 후 약간의 딜레이를 두고 리사이즈 처리
+    }, 300); // 방향 변경 후 약간의 딜레이를 두고 리사이즈 처리
 }
 
 // 화면 리사이즈 처리
@@ -109,17 +127,26 @@ export async function switchCamera() {
         facingMode = facingMode === 'user' ? 'environment' : 'user';
         
         try {
-            // 기기 방향 확인
-            const isPortrait = window.innerHeight > window.innerWidth;
-            
-            // 새 스트림 가져오기
-            const constraints = {
-                video: {
-                    facingMode: facingMode,
-                    width: isPortrait ? { ideal: 720 } : { ideal: 1280 },
-                    height: isPortrait ? { ideal: 1280 } : { ideal: 720 }
-                }
-            };
+            // iOS 특화 설정
+            let constraints;
+            if (isIOS) {
+                constraints = {
+                    video: {
+                        facingMode: facingMode,
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 }
+                    }
+                };
+            } else {
+                const isPortrait = window.innerHeight > window.innerWidth;
+                constraints = {
+                    video: {
+                        facingMode: facingMode,
+                        width: isPortrait ? { ideal: 720 } : { ideal: 1280 },
+                        height: isPortrait ? { ideal: 1280 } : { ideal: 720 }
+                    }
+                };
+            }
             
             const stream = await navigator.mediaDevices.getUserMedia(constraints);
             videoElement.srcObject = stream;
@@ -179,23 +206,58 @@ export function setCanvasSize() {
     
     if (!videoWidth || !videoHeight) return;
     
-    // 비디오 컨테이너의 크기
-    const containerWidth = videoContainer.clientWidth;
+    // 현재 기기 방향
+    const isPortrait = window.innerHeight > window.innerWidth;
     
-    // 컨테이너 너비를 기준으로 비디오 비율에 맞게 높이 계산
-    const aspectRatio = videoHeight / videoWidth;
-    const containerHeight = containerWidth * aspectRatio;
+    // iOS에서 비디오가 항상 가로 방향으로 캡처되는 문제 처리
+    let calculatedWidth, calculatedHeight;
     
-    // 비디오 컨테이너 스타일 설정
-    videoContainer.style.height = `${containerHeight}px`;
+    if (isIOS && isPortrait) {
+        // iOS 세로 모드: 비디오가 가로로 캡처되더라도 세로 방향으로 표시되도록 처리
+        // 비디오 컨테이너의 너비
+        calculatedWidth = videoContainer.clientWidth;
+        
+        // 비디오 비율을 고려하여 컨테이너 높이 계산 (비율 반전)
+        // iOS에서는 비디오가 항상 가로 방향으로 캡처되므로 세로 모드에서는 비율을 뒤집음
+        const aspectRatio = videoWidth / videoHeight;
+        calculatedHeight = calculatedWidth / aspectRatio;
+        
+        // 비디오 컨테이너 스타일 설정
+        videoContainer.style.height = `${calculatedHeight}px`;
+        
+        // 캔버스 회전 처리를 위한 스타일 설정
+        outputCanvasElement.style.transform = 'scaleX(-1) rotate(-90deg)';
+        outputCanvasElement.style.width = `${calculatedHeight}px`;
+        outputCanvasElement.style.height = `${calculatedWidth}px`;
+        outputCanvasElement.style.transformOrigin = 'center center';
+        
+        // 캔버스의 물리적 크기 설정
+        outputCanvasElement.width = videoWidth;
+        outputCanvasElement.height = videoHeight;
+    } else {
+        // iOS 가로 모드 또는 다른 기기: 일반적인 처리
+        // 비디오 컨테이너의 너비
+        calculatedWidth = videoContainer.clientWidth;
+        
+        // 비율에 맞게 높이 계산
+        const aspectRatio = videoHeight / videoWidth;
+        calculatedHeight = calculatedWidth * aspectRatio;
+        
+        // 비디오 컨테이너 스타일 설정
+        videoContainer.style.height = `${calculatedHeight}px`;
+        
+        // 캔버스 스타일 설정
+        outputCanvasElement.style.transform = 'scaleX(-1)'; // 좌우 반전만 적용
+        outputCanvasElement.style.width = '100%';
+        outputCanvasElement.style.height = '100%';
+        
+        // 캔버스의 물리적 크기 설정
+        outputCanvasElement.width = videoWidth;
+        outputCanvasElement.height = videoHeight;
+    }
     
-    // 캔버스 스타일 설정
-    outputCanvasElement.style.width = '100%';
-    outputCanvasElement.style.height = '100%';
-    
-    // 캔버스 실제 해상도 설정 (고해상도)
-    outputCanvasElement.width = videoWidth;
-    outputCanvasElement.height = videoHeight;
+    console.log(`캔버스 크기 설정: ${outputCanvasElement.width}x${outputCanvasElement.height}`);
+    console.log(`컨테이너 크기: ${calculatedWidth}x${calculatedHeight}`);
 }
 
 // 결과 렌더링을 위한 캔버스 컨텍스트 가져오기

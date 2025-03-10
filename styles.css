@@ -7,6 +7,7 @@ body {
     align-items: center;
     background-color: #f0f0f0;
     min-height: 100vh;
+    box-sizing: border-box;
 }
 
 .header {
@@ -46,11 +47,10 @@ body {
 }
 
 #output-canvas {
-    width: 100%;
-    height: 100%;
-    transform: scaleX(-1);
     display: block;
-    object-fit: cover;
+    /* transform은 JavaScript에서 동적으로 설정됨 */
+    object-fit: contain;
+    position: relative;
 }
 
 .controls {
@@ -59,6 +59,7 @@ body {
     justify-content: center;
     margin-bottom: 20px;
     gap: 10px;
+    width: 100%;
 }
 
 .button {
@@ -70,6 +71,9 @@ body {
     font-size: 16px;
     cursor: pointer;
     transition: background-color 0.3s;
+    flex: 1;
+    min-width: 120px;
+    max-width: 200px;
 }
 
 .button:hover {
@@ -117,6 +121,7 @@ body {
     justify-content: center;
     gap: 8px;
     margin: 10px 0;
+    width: 100%;
 }
 
 .effect-button {
@@ -128,6 +133,9 @@ body {
     font-size: 14px;
     cursor: pointer;
     transition: all 0.3s;
+    flex: 1;
+    text-align: center;
+    min-width: 60px;
 }
 
 .effect-button.active {
@@ -135,16 +143,51 @@ body {
     color: white;
 }
 
+/* iOS 특정 스타일 */
+@supports (-webkit-touch-callout: none) {
+    /* iOS 기기만 적용되는 스타일 */
+    .video-container {
+        transform-style: preserve-3d;
+    }
+}
+
 /* 가로 모드 vs 세로 모드 최적화 */
 @media (orientation: portrait) {
-    .video-container {
-        /* 세로 모드에서는 너비를 기준으로 높이가 동적으로 계산됨 */
+    .effect-buttons {
+        flex-wrap: wrap;
+    }
+    
+    .effect-button {
+        margin-bottom: 5px;
     }
 }
 
 @media (orientation: landscape) {
+    .container {
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: center;
+    }
+    
     .video-container {
+        max-width: 70%;
         max-height: 70vh;
+    }
+    
+    .controls {
+        flex-direction: column;
+        max-width: 25%;
+        margin-left: 20px;
+    }
+    
+    .effect-buttons {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .effect-button {
+        margin-bottom: 5px;
+        width: 100%;
     }
 }
 
@@ -153,13 +196,8 @@ body {
         padding: 0 10px;
     }
     
-    .controls {
-        flex-direction: column;
-        align-items: center;
-    }
-    
     .button {
         width: 100%;
-        margin-bottom: 8px;
+        margin-bottom: 5px;
     }
 }
