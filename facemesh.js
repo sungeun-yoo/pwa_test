@@ -66,21 +66,31 @@ function onResults(results) {
     // 캔버스 지우기
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
-    // 비디오 프레임 그리기
+    // 비디오 프레임 그리기 - 좌우 반전 적용
     ctx.save();
     ctx.translate(canvas.width, 0);
     ctx.scale(-1, 1);
     ctx.drawImage(results.image, 0, 0, canvas.width, canvas.height);
     ctx.restore();
     
-    // 감지된 얼굴 저장
+    // 감지된 얼굴 저장 - 원본 좌표 그대로 저장
     detectedFaces = results.multiFaceLandmarks;
     
     // 얼굴이 감지되었을 때만 처리
     if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
         // 각 얼굴에 대해 처리
         for (const landmarks of results.multiFaceLandmarks) {
-            drawFaceMeshEffects(landmarks, ctx, canvas);
+            // 좌우 반전된 랜드마크 생성 (메시 그리기용)
+            const mirroredLandmarks = landmarks.map(landmark => {
+                return {
+                    x: 1.0 - landmark.x,  // x 좌표만 반전
+                    y: landmark.y,
+                    z: landmark.z
+                };
+            });
+            
+            // 반전된 랜드마크로 메시 그리기
+            drawFaceMeshEffects(mirroredLandmarks, ctx, canvas);
         }
     }
 }
