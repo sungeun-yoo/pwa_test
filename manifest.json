@@ -2,7 +2,7 @@
     "name": "PWA 카메라 앱",
     "short_name": "PWA 카메라",
     "description": "간단한 PWA 카메라 애플리케이션",
-    "start_url": "/index.html",
+    "start_url": "/pwa_test/index.html",
     "display": "standalone",
     "background_color": "#ffffff",
     "theme_color": "#4285f4",
