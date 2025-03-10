@@ -1,16 +1,16 @@
-const CACHE_NAME = 'pwa-camera-v1';
+const CACHE_NAME = 'face-mesh-pwa-v1';
 const urlsToCache = [
-  '/',
-  '/index.html',
-  '/manifest.json',
-  '/icons/icon-72x72.png',
-  '/icons/icon-96x96.png',
-  '/icons/icon-128x128.png',
-  '/icons/icon-144x144.png',
-  '/icons/icon-152x152.png',
-  '/icons/icon-192x192.png',
-  '/icons/icon-384x384.png',
-  '/icons/icon-512x512.png'
+  './',
+  './index.html',
+  './manifest.json',
+  './icon.png',
+  './icon-512.png',
+  'https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js',
+  'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js',
+  'https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js',
+  'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh_solution_packed_assets.js',
+  'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh_solution_simd_wasm_bin.js',
+  'https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh_solution_wasm_bin.js'
 ];
 
 // 서비스 워커 설치 및 캐시
@@ -33,6 +33,7 @@ self.addEventListener('fetch', event => {
         if (response) {
           return response;
         }
+        
         // 없으면 네트워크에서 가져오기
         return fetch(event.request)
           .then(response => {
@@ -41,16 +42,23 @@ self.addEventListener('fetch', event => {
               return response;
             }
 
-            // 응답 복제 (스트림은 한 번만 사용 가능)
-            const responseToCache = response.clone();
+            // CDN 리소스는 캐싱 (CORS 이슈 방지)
+            if (event.request.url.includes('cdn.jsdelivr.net')) {
+              // 응답 복제 (스트림은 한 번만 사용 가능)
+              const responseToCache = response.clone();
 
-            // 네트워크 응답을 캐시에 저장
-            caches.open(CACHE_NAME)
-              .then(cache => {
-                cache.put(event.request, responseToCache);
-              });
+              // 네트워크 응답을 캐시에 저장
+              caches.open(CACHE_NAME)
+                .then(cache => {
+                  cache.put(event.request, responseToCache);
+                });
+            }
 
             return response;
+          })
+          .catch(error => {
+            // 네트워크 요청 실패 시 오프라인 페이지 등을 제공할 수 있음
+            console.error('Fetch failed:', error);
           });
       })
   );
